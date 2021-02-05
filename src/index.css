@@ -8,3 +8,24 @@ div {
   font: inherit;
   vertical-align: baseline;
 }
+
+h3 {
+  margin: 20px 0 0 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif,
+    'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
+}
+
+.fields-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.fields-buttons-container {
+  display: flex;
+  flex-direction: row;
+}
+
+.field-button {
+  margin: 20px 20px 0 0;
+  width: 25%;
+}

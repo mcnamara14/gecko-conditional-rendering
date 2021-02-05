@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { render } from 'react-dom';
 import {
+  Button,
   DisplayText,
   Paragraph,
   SectionHeading,
@@ -18,104 +19,96 @@ import '@contentful/forma-36-react-components/dist/styles.css';
 import '@contentful/forma-36-fcss/dist/styles.css';
 import './index.css';
 
-/**
- * To use this demo create a Content Type with the following fields:
- *  title: Short text
- *  body: Long text
- *  hasAbstract: Boolean
- *  abstract: Long text
- *
- *  See https://github.com/contentful/create-contentful-extension/blob/master/docs/examples/entry-editor-content-model.json for details.
- */
-
 const App = ({ sdk }) => {
   const [templateName, setTemplateName] = useState(sdk.entry.fields.templateName.getValue());
-  let [entries, setEntries] = useState(0);
+  let [templateFields, setTemplateFields] = useState([]);
 
-  // const onTitleChangeHandler = (event) => {
-  //   const value = event.target.value;
-  //   this.setState({ title: value });
-  //   sdk.entry.fields.title.setValue(value);
-  // };
-
-  // const onBodyChangeHandler = (event) => {
-  //   const value = event.target.value;
-  //   this.setState({ body: value });
-  //   sdk.entry.fields.body.setValue(value);
-  // };
-
-  // const onAbstractChangeHandler = (event) => {
-  //   const value = event.target.value;
-  //   this.setState({ abstract: value });
-  //   sdk.entry.fields.abstract.setValue(value);
-  // };
-
-  // const onHasAbstractChangeHandler = (event) => {
-  //   const hasAbstract = event.target.value === 'yes';
-  //   this.setState({ hasAbstract });
-  //   sdk.entry.fields.hasAbstract.setValue(hasAbstract);
-  // };
-
-  const openNewEntry = async () => {
-    const result = await sdk.navigator.openNewEntry('richText', {
+  const openNewEntry = async (type) => {
+    const result = await sdk.navigator.openNewEntry(type, {
       slideIn: { waitForClose: true },
+      localized: false,
+    });
+
+    await sdk.entry.fields.richText1.setValue({
+      sys: {
+        id: result.entity.sys.id,
+        linkType: 'Entry',
+        type: 'Link',
+      },
     });
   };
 
-  const handleOnTemplateNameChange = async (e) => {
-    const template = await sdk.space.getEntry('3mtTRlbNuJxDtBMH4i2hmd');
-    const rowFields = await sdk.space.getEntry(template.fields.rows['en-US'][0].sys.id);
-
-    const columnFields = await Promise.all(
-      rowFields.fields.columns['en-US'].map((column) => {
-        return sdk.space.getEntry(column.sys.id);
-      })
-    );
-
-    const itemFields = await Promise.all(
-      columnFields.map((field) => {
-        return Promise.all(
-          field.fields.items['en-US'].map((item) => {
-            return sdk.space.getEntry(item.sys.id);
-          })
-        );
-      })
-    );
-
-    itemFields.forEach((field) => {
-      field.forEach((item) => {
-        if (item.sys.contentType.sys.id === 'richText') setEntries((entries += 1));
-      });
+  const openExistingEntry = async (type) => {
+    await sdk.dialogs.selectSingleEntry({
+      contentTypes: [type],
     });
-
-    console.log('entries', entries);
   };
 
-  const getFields = () => {
-    let fields = [];
-    for (let i = 0; i < entries; i++) {
-      fields.push(<button onClick={openNewEntry}>Open new entry</button>);
-    }
+  const handleOnTemplateNameChange = async (event) => {
+    const template = await sdk.space.getEntry(event.target.value);
 
-    return fields;
+    const fieldsInfo = await Promise.all(
+      template.fields.fields['en-US'].map((field) => {
+        return sdk.space.getEntry(field.sys.id);
+      })
+    );
+
+    const scrubbedFields = fieldsInfo.map((field) => {
+      return { title: field.fields.title['en-US'], fields: field.fields.fields['en-US'] };
+    });
+
+    setTemplateFields(scrubbedFields);
+  };
+
+  const Fields = () => {
+    const templateElements = templateFields.map((field) => {
+      const types = {
+        'Rich Text': 'richText',
+        CTA: 'callToAction',
+        'Website Image': 'image',
+      };
+
+      return (
+        <div className="fields-container">
+          <h3>{field.title}</h3>
+          {field.fields.map((field) => {
+            return (
+              <div className="fields-buttons-container">
+                <Button
+                  buttonType="primary"
+                  icon="Plus"
+                  onClick={() => openNewEntry(types[field])}
+                  className="field-button">{`Create ${field} entry`}</Button>
+                <Button
+                  buttonType="primary"
+                  icon="Plus"
+                  onClick={() => openExistingEntry(types[field])}
+                  className="field-button">{`Open ${field} entry`}</Button>
+              </div>
+            );
+          })}
+        </div>
+      );
+    });
+
+    return templateElements;
+    // fields.push(<button onClick={openNewEntry}>Create new entry</button>);
   };
 
   return (
     <Form className="f36-margin--l">
-      <DisplayText>Entry extension demo</DisplayText>
-      <Paragraph>
-        This demo uses a single UI s Extension to render the whole editor for an entry.
-      </Paragraph>
+      <DisplayText>Gecko Template</DisplayText>
+      <Paragraph>Select template name to display required fields</Paragraph>
       <SelectField
         name="optionSelect"
         id="optionSelect"
         labelText="Label"
         selectProps="large"
         onChange={(e) => handleOnTemplateNameChange(e)}>
-        <Option value="Ladder">Ladder</Option>
-        <Option value="Sledge">Sledge</Option>
+        <Option value="1HgRR2JO1tvtnKgNaNqS4t">Ladder</Option>
+        <Option value="1HgRR2JO1tvtnKgNaNqS4t">Sledge</Option>
       </SelectField>
-      {getFields()}
+      <Fields />
       {/* <SectionHeading>Title</SectionHeading>
         <TextInput
           testId="field-title"
