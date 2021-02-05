@@ -93,7 +93,7 @@ const App = ({ sdk }) => {
 
   const getFields = () => {
     let fields = [];
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < entries; i++) {
       fields.push(<button onClick={openNewEntry}>Open new entry</button>);
     }
 
