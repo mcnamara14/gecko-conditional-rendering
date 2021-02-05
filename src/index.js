@@ -23,13 +23,14 @@ const App = ({ sdk }) => {
   const [templateName, setTemplateName] = useState(sdk.entry.fields.templateName.getValue());
   let [templateFields, setTemplateFields] = useState([]);
 
-  const openNewEntry = async (type) => {
+  const openNewEntry = async (type, num) => {
     const result = await sdk.navigator.openNewEntry(type, {
       slideIn: { waitForClose: true },
       localized: false,
     });
-
-    await sdk.entry.fields.richText1.setValue({
+    console.log('sdk', sdk.entry.fields);
+    console.log('`type${num}`', `${type}${num}`);
+    await sdk.entry.fields[`${type}${num}`].setValue({
       sys: {
         id: result.entity.sys.id,
         linkType: 'Entry',
@@ -61,6 +62,7 @@ const App = ({ sdk }) => {
   };
 
   const Fields = () => {
+    const fieldCount = { 'Rich Text': 0, 'Website Image': 0, CTA: 0 };
     const templateElements = templateFields.map((field) => {
       const types = {
         'Rich Text': 'richText',
@@ -72,17 +74,25 @@ const App = ({ sdk }) => {
         <div className="fields-container">
           <h3>{field.title}</h3>
           {field.fields.map((field) => {
+            if (field === 'Rich Text') {
+              fieldCount['Rich Text'] += 1;
+            } else if (field === 'CTA') {
+              fieldCount['CTA'] += 1;
+            } else if (field === 'Website Image') {
+              fieldCount['Website Image'] += 1;
+            }
+
             return (
               <div className="fields-buttons-container">
                 <Button
                   buttonType="primary"
                   icon="Plus"
-                  onClick={() => openNewEntry(types[field])}
+                  onClick={() => openNewEntry(types[field], fieldCount[field])}
                   className="field-button">{`Create ${field} entry`}</Button>
                 <Button
                   buttonType="primary"
                   icon="Plus"
-                  onClick={() => openExistingEntry(types[field])}
+                  onClick={() => openExistingEntry(types[field], fieldCount[field])}
                   className="field-button">{`Open ${field} entry`}</Button>
               </div>
             );
