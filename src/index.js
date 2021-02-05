@@ -23,25 +23,30 @@ const App = ({ sdk }) => {
   const [templateName, setTemplateName] = useState(sdk.entry.fields.templateName.getValue());
   let [templateFields, setTemplateFields] = useState([]);
 
-  const openNewEntry = async (type, num) => {
+  const openNewEntry = async (type, id) => {
     const result = await sdk.navigator.openNewEntry(type, {
       slideIn: { waitForClose: true },
       localized: false,
     });
-    console.log('sdk', sdk.entry.fields);
-    console.log('`type${num}`', `${type}${num}`);
-    await sdk.entry.fields[`${type}${num}`].setValue({
+
+    setFieldValue(result.entity.sys.id, id);
+  };
+
+  const openExistingEntry = async (type, id) => {
+    const result = await sdk.dialogs.selectSingleEntry({
+      contentTypes: [type],
+    });
+
+    setFieldValue(result.sys.id, id);
+  };
+
+  const setFieldValue = async (sysId, id) => {
+    await sdk.entry.fields[id].setValue({
       sys: {
-        id: result.entity.sys.id,
+        id: sysId,
         linkType: 'Entry',
         type: 'Link',
       },
-    });
-  };
-
-  const openExistingEntry = async (type) => {
-    await sdk.dialogs.selectSingleEntry({
-      contentTypes: [type],
     });
   };
 
@@ -81,18 +86,19 @@ const App = ({ sdk }) => {
             } else if (field === 'Website Image') {
               fieldCount['Website Image'] += 1;
             }
+            const id = `${types[field]}${fieldCount[field]}`;
 
             return (
               <div className="fields-buttons-container">
                 <Button
                   buttonType="primary"
                   icon="Plus"
-                  onClick={() => openNewEntry(types[field], fieldCount[field])}
+                  onClick={() => openNewEntry(types[field], id)}
                   className="field-button">{`Create ${field} entry`}</Button>
                 <Button
                   buttonType="primary"
                   icon="Plus"
-                  onClick={() => openExistingEntry(types[field], fieldCount[field])}
+                  onClick={() => openExistingEntry(types[field], id)}
                   className="field-button">{`Open ${field} entry`}</Button>
               </div>
             );
