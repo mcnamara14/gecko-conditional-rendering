@@ -1,15 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { render } from 'react-dom';
 import {
   Button,
   DisplayText,
   Paragraph,
-  SectionHeading,
-  TextInput,
-  Textarea,
-  FieldGroup,
-  RadioButtonField,
   Form,
   SelectField,
   Option,
@@ -18,10 +13,46 @@ import { init, locations } from 'contentful-ui-extensions-sdk';
 import '@contentful/forma-36-react-components/dist/styles.css';
 import '@contentful/forma-36-fcss/dist/styles.css';
 import './index.css';
+import { template } from '@babel/core';
 
 const App = ({ sdk }) => {
-  const [templateName, setTemplateName] = useState(sdk.entry.fields.templateName.getValue());
   let [templateFields, setTemplateFields] = useState([]);
+  const [templateData, setTemplateData] = useState([]);
+  const [selectedTemplateData, setSelectedTemplateData] = useState(null);
+
+  const setTemplateDropdownData = async () => {
+    const templateParents = await sdk.space.getEntries({
+      content_type: 'templateParent',
+    });
+
+    const templatesData = await Promise.all(
+      templateParents.items.map(async (template) => {
+        const parentData = {
+          name: template.fields.name['en-US'],
+          variations: [],
+        };
+
+        for (const variation of template.fields.variations['en-US']) {
+          const variationEntry = await sdk.space.getEntry(variation.sys.id);
+
+          const variationData = {
+            name: variationEntry.fields.name['en-US'],
+            id: variationEntry.sys.id,
+          };
+
+          parentData.variations.push(variationData);
+        }
+
+        return parentData;
+      })
+    );
+
+    setTemplateData(templatesData);
+  };
+
+  useEffect(() => {
+    setTemplateDropdownData();
+  }, []);
 
   const openNewEntry = async (type, id) => {
     const result = await sdk.navigator.openNewEntry(type, {
@@ -50,55 +81,65 @@ const App = ({ sdk }) => {
     });
   };
 
-  const handleOnTemplateNameChange = async (event) => {
-    const template = await sdk.space.getEntry(event.target.value);
+  const handleNameSelect = (event) => {
+    const selectedTemplate = templateData.find((template) => {
+      return template.name === event.target.value;
+    });
 
-    const fieldsInfo = await Promise.all(
-      template.fields.fields['en-US'].map((field) => {
+    setSelectedTemplateData(selectedTemplate.variations);
+  };
+
+  const handleVariationSelect = async (event) => {
+    const variation = await sdk.space.getEntry(event.target.value);
+
+    const fields = await Promise.all(
+      variation.fields.fields['en-US'].map((field) => {
         return sdk.space.getEntry(field.sys.id);
       })
     );
 
-    const scrubbedFields = fieldsInfo.map((field) => {
-      return { title: field.fields.title['en-US'], fields: field.fields.fields['en-US'] };
-    });
+    const scrubbedFields = await Promise.all(
+      fields.map(async (field) => {
+        const fieldData = { title: field.fields.title['en-US'], fields: [] };
+
+        const fieldEntries = await Promise.all(
+          field.fields.templateFields['en-US'].map(async (entry) => {
+            const fieldEntry = await sdk.space.getEntry(entry.sys.id);
+
+            return fieldEntry.sys.contentType.sys.id;
+          })
+        );
+        fieldData.fields = fieldEntries;
+        return fieldData;
+      })
+    );
 
     setTemplateFields(scrubbedFields);
   };
 
   const Fields = () => {
-    const fieldCount = { 'Rich Text': 0, 'Website Image': 0, CTA: 0 };
+    const fieldCount = { richText: 0, 'Website Image': 0, CTA: 0 };
     const templateElements = templateFields.map((field) => {
-      const types = {
-        'Rich Text': 'richText',
-        CTA: 'callToAction',
-        'Website Image': 'image',
-      };
-
       return (
         <div className="fields-container">
           <h3>{field.title}</h3>
           {field.fields.map((field) => {
-            if (field === 'Rich Text') {
-              fieldCount['Rich Text'] += 1;
-            } else if (field === 'CTA') {
-              fieldCount['CTA'] += 1;
-            } else if (field === 'Website Image') {
-              fieldCount['Website Image'] += 1;
+            if (field === 'richText') {
+              fieldCount['richText'] += 1;
             }
-            const id = `${types[field]}${fieldCount[field]}`;
+            const id = `${field}${fieldCount[field]}`;
 
             return (
               <div className="fields-buttons-container">
                 <Button
                   buttonType="primary"
                   icon="Plus"
-                  onClick={() => openNewEntry(types[field], id)}
+                  onClick={() => openNewEntry(field, id)}
                   className="field-button">{`Create ${field} entry`}</Button>
                 <Button
                   buttonType="primary"
                   icon="Plus"
-                  onClick={() => openExistingEntry(types[field], id)}
+                  onClick={() => openExistingEntry(field, id)}
                   className="field-button">{`Open ${field} entry`}</Button>
               </div>
             );
@@ -108,7 +149,6 @@ const App = ({ sdk }) => {
     });
 
     return templateElements;
-    // fields.push(<button onClick={openNewEntry}>Create new entry</button>);
   };
 
   return (
@@ -118,66 +158,35 @@ const App = ({ sdk }) => {
       <SelectField
         name="optionSelect"
         id="optionSelect"
-        labelText="Label"
+        labelText="Template Name"
         selectProps="large"
-        onChange={(e) => handleOnTemplateNameChange(e)}>
-        <Option value="1HgRR2JO1tvtnKgNaNqS4t">Ladder</Option>
-        <Option value="1HgRR2JO1tvtnKgNaNqS4t">Sledge</Option>
+        onChange={(e) => handleNameSelect(e)}>
+        {templateData.map((template) => {
+          return <Option value={template.name}>{template.name}</Option>;
+        })}
+
+        {/* <Option value="1HgRR2JO1tvtnKgNaNqS4t">Ladder</Option>
+        <Option value="1HgRR2JO1tvtnKgNaNqS4t">Sledge</Option> */}
       </SelectField>
+      {selectedTemplateData && (
+        <SelectField
+          name="optionSelect"
+          id="optionSelect"
+          labelText="Variation"
+          selectProps="large"
+          onChange={(e) => handleVariationSelect(e)}>
+          {selectedTemplateData.map((variation) => {
+            return <Option value={variation.id}>{variation.name}</Option>;
+          })}
+        </SelectField>
+      )}
       <Fields />
-      {/* <SectionHeading>Title</SectionHeading>
-        <TextInput
-          testId="field-title"
-          onChange={this.onTitleChangeHandler}
-          value={this.state.title}
-        />
-        <SectionHeading>Body</SectionHeading>
-        <Textarea testId="field-body" onChange={this.onBodyChangeHandler} value={this.state.body} />
-        <SectionHeading>Has abstract?</SectionHeading>
-        <FieldGroup row={false}>
-          <RadioButtonField
-            labelText="Yes"
-            checked={this.state.hasAbstract === true}
-            value="yes"
-            onChange={this.onHasAbstractChangeHandler}
-            name="abstractOption"
-            id="yesCheckbox"
-          />
-          <RadioButtonField
-            labelText="No"
-            checked={this.state.hasAbstract === false}
-            value="no"
-            onChange={this.onHasAbstractChangeHandler}
-            name="abstractOption"
-            id="noCheckbox"
-          />
-          <button onClick={this.openNewEntry}>Open new entry</button>
-        </FieldGroup> */}
-      {/* {this.state.hasAbstract && (
-          <React.Fragment>
-            <SectionHeading>Abstract</SectionHeading>
-            <Textarea
-              testId="field-abstract"
-              onChange={this.onAbstractChangeHandler}
-              value={this.state.abstract}
-            />
-          </React.Fragment>
-        )} */}
     </Form>
   );
 };
 
 init((sdk) => {
-  console.log('sdk', sdk);
   if (sdk.location.is(locations.LOCATION_ENTRY_EDITOR)) {
     render(<App sdk={sdk} />, document.getElementById('root'));
   }
 });
-
-/**
- * By default, iframe of the extension is fully reloaded on every save of a source file.
- * If you want to use HMR (hot module reload) instead of full reload, uncomment the following lines
- */
-// if (module.hot) {
-//   module.hot.accept();
-// }
