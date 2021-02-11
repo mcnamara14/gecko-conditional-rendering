@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import PropTypes from 'prop-types';
 import { render } from 'react-dom';
 import {
   Button,
@@ -13,7 +12,6 @@ import { init, locations } from 'contentful-ui-extensions-sdk';
 import '@contentful/forma-36-react-components/dist/styles.css';
 import '@contentful/forma-36-fcss/dist/styles.css';
 import './index.css';
-import { template } from '@babel/core';
 
 const App = ({ sdk }) => {
   let [templateFields, setTemplateFields] = useState([]);
@@ -54,31 +52,49 @@ const App = ({ sdk }) => {
     setTemplateDropdownData();
   }, []);
 
-  const openNewEntry = async (type, id) => {
-    const result = await sdk.navigator.openNewEntry(type, {
+  const openExistingEntry = async (fieldId, id) => {
+    const parentEntry = await sdk.space.getEntry(fieldId);
+
+    const { fields } = parentEntry;
+    const newFields = { ...fields };
+
+    newFields.internalName['en-US'] = `${newFields.internalName['en-US']} (Clone)`;
+
+    const clonedEntry = await sdk.space.createEntry(parentEntry.sys.contentType.sys.id, {
+      fields: newFields,
+    });
+
+    const result = await sdk.navigator.openEntry(clonedEntry.sys.id, {
       slideIn: { waitForClose: true },
-      localized: false,
     });
 
     setFieldValue(result.entity.sys.id, id);
   };
 
-  const openExistingEntry = async (type, id) => {
-    const result = await sdk.dialogs.selectSingleEntry({
-      contentTypes: [type],
-    });
-
-    setFieldValue(result.sys.id, id);
-  };
-
   const setFieldValue = async (sysId, id) => {
-    await sdk.entry.fields[id].setValue({
-      sys: {
-        id: sysId,
-        linkType: 'Entry',
-        type: 'Link',
-      },
-    });
+    const fieldValue = await sdk.entry.fields[id].getValue();
+    if (Array.isArray(fieldValue)) {
+      await sdk.entry.fields[id].setValue([
+        ...fieldValue,
+        {
+          sys: {
+            id: sysId,
+            linkType: 'Entry',
+            type: 'Link',
+          },
+        },
+      ]);
+    } else {
+      await sdk.entry.fields[id].setValue([
+        {
+          sys: {
+            id: sysId,
+            linkType: 'Entry',
+            type: 'Link',
+          },
+        },
+      ]);
+    }
   };
 
   const handleNameSelect = (event) => {
@@ -106,9 +122,14 @@ const App = ({ sdk }) => {
           field.fields.templateFields['en-US'].map(async (entry) => {
             const fieldEntry = await sdk.space.getEntry(entry.sys.id);
 
-            return fieldEntry.sys.contentType.sys.id;
+            return {
+              contentType: fieldEntry.sys.contentType.sys.id,
+              id: fieldEntry.sys.id,
+              name: fieldEntry.fields.internalName['en-US'],
+            };
           })
         );
+
         fieldData.fields = fieldEntries;
         return fieldData;
       })
@@ -119,28 +140,24 @@ const App = ({ sdk }) => {
 
   const Fields = () => {
     const fieldCount = { richText: 0, 'Website Image': 0, CTA: 0 };
+
     const templateElements = templateFields.map((field) => {
       return (
         <div className="fields-container">
           <h3>{field.title}</h3>
           {field.fields.map((field) => {
-            if (field === 'richText') {
+            if (field.contentType === 'richText') {
               fieldCount['richText'] += 1;
             }
-            const id = `${field}${fieldCount[field]}`;
+            const id = `${field.contentType}${fieldCount[field.contentType]}`;
 
             return (
               <div className="fields-buttons-container">
                 <Button
                   buttonType="primary"
-                  icon="Plus"
-                  onClick={() => openNewEntry(field, id)}
-                  className="field-button">{`Create ${field} entry`}</Button>
-                <Button
-                  buttonType="primary"
-                  icon="Plus"
-                  onClick={() => openExistingEntry(field, id)}
-                  className="field-button">{`Open ${field} entry`}</Button>
+                  icon="PlusCircle"
+                  onClick={() => openExistingEntry(field.id, field.contentType)}
+                  className="field-button">{`Edit ${field.name}`}</Button>
               </div>
             );
           })}
