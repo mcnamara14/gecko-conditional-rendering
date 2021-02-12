@@ -17,6 +17,7 @@ const App = ({ sdk }) => {
   let [templateFields, setTemplateFields] = useState([]);
   const [templateData, setTemplateData] = useState([]);
   const [selectedTemplateData, setSelectedTemplateData] = useState(null);
+  let [count, setCount] = useState(0);
 
   const setTemplateDropdownData = async () => {
     const templateParents = await sdk.space.getEntries({
@@ -46,14 +47,18 @@ const App = ({ sdk }) => {
     );
 
     setTemplateData(templatesData);
+    if (count === 0) {
+      setCount((count += 1));
+    }
   };
 
   useEffect(() => {
     setTemplateDropdownData();
-    if (templateData.length > 0) {
+
+    if (count === 1) {
       handleNameSelect({ target: { value: templateData[0].name } });
     }
-  }, [templateData]);
+  }, [count]);
 
   const openExistingEntry = async (fieldId, id) => {
     const parentEntry = await sdk.space.getEntry(fieldId);
