@@ -50,7 +50,10 @@ const App = ({ sdk }) => {
 
   useEffect(() => {
     setTemplateDropdownData();
-  }, []);
+    if (templateData.length > 0) {
+      handleNameSelect({ target: { value: templateData[0].name } });
+    }
+  }, [templateData]);
 
   const openExistingEntry = async (fieldId, id) => {
     const parentEntry = await sdk.space.getEntry(fieldId);
@@ -58,10 +61,15 @@ const App = ({ sdk }) => {
     const { fields } = parentEntry;
     const newFields = { ...fields };
 
-    newFields.internalName['en-US'] = `${newFields.internalName['en-US']} (Clone)`;
+    newFields.internalName['en-US'] = `${newFields.internalName['en-US']}`;
+
+    const updatedFields = {
+      ...newFields,
+      templateEntryId: { ['en-US']: parentEntry.sys.id },
+    };
 
     const clonedEntry = await sdk.space.createEntry(parentEntry.sys.contentType.sys.id, {
-      fields: newFields,
+      fields: updatedFields,
     });
 
     const result = await sdk.navigator.openEntry(clonedEntry.sys.id, {
@@ -72,28 +80,40 @@ const App = ({ sdk }) => {
   };
 
   const setFieldValue = async (sysId, id) => {
+    const field = await sdk.entry.fields[id];
     const fieldValue = await sdk.entry.fields[id].getValue();
-    if (Array.isArray(fieldValue)) {
-      await sdk.entry.fields[id].setValue([
-        ...fieldValue,
-        {
-          sys: {
-            id: sysId,
-            linkType: 'Entry',
-            type: 'Link',
-          },
+
+    if (field.type === 'Link') {
+      await sdk.entry.fields[id].setValue({
+        sys: {
+          id: sysId,
+          linkType: 'Entry',
+          type: 'Link',
         },
-      ]);
+      });
     } else {
-      await sdk.entry.fields[id].setValue([
-        {
-          sys: {
-            id: sysId,
-            linkType: 'Entry',
-            type: 'Link',
+      if (Array.isArray(fieldValue)) {
+        await sdk.entry.fields[id].setValue([
+          ...fieldValue,
+          {
+            sys: {
+              id: sysId,
+              linkType: 'Entry',
+              type: 'Link',
+            },
           },
-        },
-      ]);
+        ]);
+      } else {
+        await sdk.entry.fields[id].setValue([
+          {
+            sys: {
+              id: sysId,
+              linkType: 'Entry',
+              type: 'Link',
+            },
+          },
+        ]);
+      }
     }
   };
 
@@ -103,63 +123,152 @@ const App = ({ sdk }) => {
     });
 
     setSelectedTemplateData(selectedTemplate.variations);
+    handleVariationSelect({ target: { value: selectedTemplate.variations[0].id } });
+  };
+
+  const buildSelectionTree = async (variationTemplate) => {
+    const getRows = async (data) => {
+      return await Promise.all(
+        data.fields.rows['en-US'].map((row) => {
+          const rowId = row.sys.id;
+          return sdk.space.getEntry(rowId);
+        })
+      );
+    };
+
+    const rows = await getRows(variationTemplate);
+
+    const getColumns = async (data) => {
+      return await Promise.all(
+        data.map(async (row) => {
+          const column = await getColumn(row);
+          return column;
+        })
+      );
+    };
+
+    const getColumn = async (data) => {
+      return Promise.all(
+        data.fields.columns['en-US'].map((column) => {
+          const columnId = column.sys.id;
+          return sdk.space.getEntry(columnId);
+        })
+      );
+    };
+
+    const columns = await getColumns(rows);
+
+    const getOptions = async (data) => {
+      return Promise.all(
+        data.map(async (entry) => {
+          if (entry.sys.contentType.sys.id === 'section') {
+            const columns = await getColumn(entry);
+
+            for (const column of columns) {
+              const data = {
+                title: column.fields.internalName['en-US'],
+                options: [],
+                contentType: 'nested-row',
+              };
+
+              const itemEntries = await getEntries(column);
+              const options = await getOptions(itemEntries);
+
+              data.options = options;
+
+              return data;
+            }
+          } else {
+            return {
+              title: entry.fields.internalName['en-US'],
+              id: entry.sys.id,
+              contentType: entry.sys.contentType.sys.id,
+            };
+          }
+        })
+      );
+    };
+
+    const getEntries = async (data) => {
+      return Promise.all(
+        data.fields.items['en-US'].map((item) => {
+          const itemId = item.sys.id;
+          return sdk.space.getEntry(itemId);
+        })
+      );
+    };
+
+    const getTreeData = async (columns) => {
+      const tree = [];
+      for (const column of columns) {
+        const data = {
+          title: column.fields.internalName['en-US'],
+          options: [],
+          contentType: 'row',
+        };
+
+        const itemEntries = await getEntries(column);
+        const options = await getOptions(itemEntries);
+
+        data.options = options;
+
+        tree.push(data);
+      }
+
+      return tree;
+    };
+
+    const tree = await getTreeData(columns[0]);
+
+    setTemplateFields(tree);
   };
 
   const handleVariationSelect = async (event) => {
     const variation = await sdk.space.getEntry(event.target.value);
+    const variationTemplateId = variation.fields.section['en-US'].sys.id;
+    const variationTemplate = await sdk.space.getEntry(variationTemplateId);
 
-    const fields = await Promise.all(
-      variation.fields.fields['en-US'].map((field) => {
-        return sdk.space.getEntry(field.sys.id);
-      })
-    );
+    setFieldValue(variationTemplate.sys.id, 'section');
 
-    const scrubbedFields = await Promise.all(
-      fields.map(async (field) => {
-        const fieldData = { title: field.fields.title['en-US'], fields: [] };
-
-        const fieldEntries = await Promise.all(
-          field.fields.templateFields['en-US'].map(async (entry) => {
-            const fieldEntry = await sdk.space.getEntry(entry.sys.id);
-
-            return {
-              contentType: fieldEntry.sys.contentType.sys.id,
-              id: fieldEntry.sys.id,
-              name: fieldEntry.fields.internalName['en-US'],
-            };
-          })
-        );
-
-        fieldData.fields = fieldEntries;
-        return fieldData;
-      })
-    );
-
-    setTemplateFields(scrubbedFields);
+    buildSelectionTree(variationTemplate);
   };
 
   const Fields = () => {
-    const fieldCount = { richText: 0, 'Website Image': 0, CTA: 0 };
-
     const templateElements = templateFields.map((field) => {
       return (
         <div className="fields-container">
           <h3>{field.title}</h3>
-          {field.fields.map((field) => {
-            if (field.contentType === 'richText') {
-              fieldCount['richText'] += 1;
+          {field.options.map((option) => {
+            if (option.contentType === 'nested-row') {
+              return (
+                <div className="nested-fields-container">
+                  <h4>{option.title}</h4>
+                  {option.options.map((nestedOption) => {
+                    return (
+                      <div className="fields-buttons-container">
+                        <Button
+                          buttonType="primary"
+                          icon="PlusCircle"
+                          onClick={() =>
+                            openExistingEntry(nestedOption.id, nestedOption.contentType)
+                          }
+                          className="field-button">{`Edit ${nestedOption.title}`}</Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            } else {
+              return (
+                <div className="fields-buttons-container">
+                  <Button
+                    buttonType="primary"
+                    icon="PlusCircle"
+                    onClick={() => openExistingEntry(option.id, option.contentType)}
+                    className="field-button">{`Edit ${option.title}`}</Button>
+                </div>
+              );
             }
-            const id = `${field.contentType}${fieldCount[field.contentType]}`;
-
-            return (
-              <div className="fields-buttons-container">
-                <Button
-                  buttonType="primary"
-                  icon="PlusCircle"
-                  onClick={() => openExistingEntry(field.id, field.contentType)}
-                  className="field-button">{`Edit ${field.name}`}</Button>
-              </div>
-            );
           })}
         </div>
       );
@@ -181,9 +290,6 @@ const App = ({ sdk }) => {
         {templateData.map((template) => {
           return <Option value={template.name}>{template.name}</Option>;
         })}
-
-        {/* <Option value="1HgRR2JO1tvtnKgNaNqS4t">Ladder</Option>
-        <Option value="1HgRR2JO1tvtnKgNaNqS4t">Sledge</Option> */}
       </SelectField>
       {selectedTemplateData && (
         <SelectField

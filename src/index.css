@@ -10,7 +10,15 @@ div {
 }
 
 h3 {
-  margin: 20px 0 0 0;
+  margin: 0;
+}
+
+h4 {
+  margin-bottom: 5px;
+}
+
+h3,
+h4 {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif,
     'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
 }
@@ -18,6 +26,10 @@ h3 {
 .fields-container {
   display: flex;
   flex-direction: column;
+  border-left: 1px solid #2d64b3;
+  padding: 20px 0 20px 30px;
+  margin: 0 0 40px 0;
+  background: #f8f8f8;
 }
 
 .fields-buttons-container {
@@ -42,4 +54,8 @@ h3 {
 
 .field-button:hover {
   background-color: transparent !important;
+}
+
+.nested-fields-container {
+  margin: 20px 0 0 40px;
 }
