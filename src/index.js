@@ -17,7 +17,16 @@ const App = ({ sdk }) => {
   let [templateFields, setTemplateFields] = useState([]);
   const [templateData, setTemplateData] = useState([]);
   const [selectedTemplateData, setSelectedTemplateData] = useState(null);
+  const [completedEntryIds, setCompletedEntryIds] = useState([]);
   let [count, setCount] = useState(0);
+
+  const getEntry = async (entry) => {
+    if (entry.sys) {
+      return await sdk.space.getEntry(entry?.sys?.id);
+    } else {
+      return await sdk.space.getEntry(entry);
+    }
+  };
 
   const setTemplateDropdownData = async () => {
     const templateParents = await sdk.space.getEntries({
@@ -32,7 +41,7 @@ const App = ({ sdk }) => {
         };
 
         for (const variation of template.fields.variations['en-US']) {
-          const variationEntry = await sdk.space.getEntry(variation.sys.id);
+          const variationEntry = await getEntry(variation);
 
           const variationData = {
             name: variationEntry.fields.name['en-US'],
@@ -57,11 +66,95 @@ const App = ({ sdk }) => {
 
     if (count === 1) {
       handleNameSelect({ target: { value: templateData[0].name } });
+      getCompletedEntryIds();
     }
   }, [count]);
 
-  const openExistingEntry = async (fieldId, id) => {
-    const parentEntry = await sdk.space.getEntry(fieldId);
+  const getCompletedEntryIds = async () => {
+    setCompletedEntryIds([]);
+
+    const fields = await sdk.entry.fields;
+    const fieldNames = Object.keys(fields);
+
+    const fieldValues = await Promise.all(
+      fieldNames.map(async (fieldName) => {
+        if (fieldName !== 'section' && fieldName !== 'templateName') {
+          const fieldValue = await sdk.entry.fields[fieldName].getValue();
+
+          if (Array.isArray(fieldValue)) {
+            const arrays = Promise.all(
+              fieldValue.map(async (value) => {
+                if (value) {
+                  if (!completedEntryIds.includes(value?.sys?.id)) {
+                    const parentEntry = await getEntry(value);
+                    const templateEntryId = parentEntry.fields.templateEntryId['en-US'];
+
+                    return templateEntryId;
+                  }
+                }
+              })
+            );
+
+            return arrays;
+          } else {
+            if (fieldValue) {
+              if (!completedEntryIds.includes(fieldValue?.sys?.id)) {
+                const parentEntry = await getEntry(fieldValue);
+                const templateEntryId = parentEntry.fields.templateEntryId['en-US'];
+
+                return templateEntryId;
+              }
+            }
+          }
+        }
+      })
+    );
+
+    const fieldIds = [];
+
+    fieldValues.forEach((value) => {
+      if (value !== undefined) {
+        if (Array.isArray(value)) {
+          fieldIds.push(...value);
+        } else {
+          fieldIds.push(value);
+        }
+      }
+    });
+
+    setCompletedEntryIds(fieldIds);
+  };
+
+  const openEntry = async (id) => {
+    const fields = await sdk.entry.fields;
+    const fieldNames = Object.keys(fields);
+
+    fieldNames.forEach(async (fieldName) => {
+      if (fieldName !== 'section' && fieldName !== 'templateName') {
+        const fieldValue = await sdk.entry.fields[fieldName].getValue();
+
+        if (Array.isArray(fieldValue)) {
+          fieldValue.forEach(async (value) => {
+            if (value) {
+              if (!completedEntryIds.includes(value?.sys?.id)) {
+                const parentEntry = await getEntry(value);
+                const templateEntryId = parentEntry.fields.templateEntryId['en-US'];
+
+                if (templateEntryId === id) {
+                  await sdk.navigator.openEntry(parentEntry.sys.id, {
+                    slideIn: { waitForClose: true },
+                  });
+                }
+              }
+            }
+          });
+        }
+      }
+    });
+  };
+
+  const openExistingEntryClone = async (fieldId, id) => {
+    const parentEntry = await getEntry(fieldId);
 
     const { fields } = parentEntry;
     const newFields = { ...fields };
@@ -82,43 +175,32 @@ const App = ({ sdk }) => {
     });
 
     setFieldValue(result.entity.sys.id, id);
+
+    if (!completedEntryIds.includes(result.entity.sys.id)) {
+      getCompletedEntryIds();
+    }
+  };
+
+  const getEntrySetValue = (id) => {
+    return {
+      sys: {
+        id: id,
+        linkType: 'Entry',
+        type: 'Link',
+      },
+    };
   };
 
   const setFieldValue = async (sysId, id) => {
     const field = await sdk.entry.fields[id];
-    const fieldValue = await sdk.entry.fields[id].getValue();
+    const fieldValue = field.getValue();
 
     if (field.type === 'Link') {
-      await sdk.entry.fields[id].setValue({
-        sys: {
-          id: sysId,
-          linkType: 'Entry',
-          type: 'Link',
-        },
-      });
+      field.setValue(getEntrySetValue(sysId));
+    } else if (Array.isArray(fieldValue)) {
+      field.setValue([...fieldValue, getEntrySetValue(sysId)]);
     } else {
-      if (Array.isArray(fieldValue)) {
-        await sdk.entry.fields[id].setValue([
-          ...fieldValue,
-          {
-            sys: {
-              id: sysId,
-              linkType: 'Entry',
-              type: 'Link',
-            },
-          },
-        ]);
-      } else {
-        await sdk.entry.fields[id].setValue([
-          {
-            sys: {
-              id: sysId,
-              linkType: 'Entry',
-              type: 'Link',
-            },
-          },
-        ]);
-      }
+      field.setValue([getEntrySetValue(sysId)]);
     }
   };
 
@@ -136,7 +218,7 @@ const App = ({ sdk }) => {
       return await Promise.all(
         data.fields.rows['en-US'].map((row) => {
           const rowId = row.sys.id;
-          return sdk.space.getEntry(rowId);
+          return getEntry(rowId);
         })
       );
     };
@@ -156,7 +238,7 @@ const App = ({ sdk }) => {
       return Promise.all(
         data.fields.columns['en-US'].map((column) => {
           const columnId = column.sys.id;
-          return sdk.space.getEntry(columnId);
+          return getEntry(columnId);
         })
       );
     };
@@ -198,7 +280,7 @@ const App = ({ sdk }) => {
       return Promise.all(
         data.fields.items['en-US'].map((item) => {
           const itemId = item.sys.id;
-          return sdk.space.getEntry(itemId);
+          return getEntry(itemId);
         })
       );
     };
@@ -229,11 +311,11 @@ const App = ({ sdk }) => {
   };
 
   const handleVariationSelect = async (event) => {
-    const variation = await sdk.space.getEntry(event.target.value);
+    const variation = await getEntry(event.target.value);
     const variationTemplateId = variation.fields.section['en-US'].sys.id;
-    const variationTemplate = await sdk.space.getEntry(variationTemplateId);
+    const variationTemplate = await getEntry(variationTemplateId);
 
-    setFieldValue(variationTemplate.sys.id, 'section');
+    await setFieldValue(variationTemplate.sys.id, 'section');
 
     buildSelectionTree(variationTemplate);
   };
@@ -244,20 +326,32 @@ const App = ({ sdk }) => {
         <div className="fields-container">
           <h3>{field.title}</h3>
           {field.options.map((option) => {
+            const addedEntry = completedEntryIds.includes(option.id);
+            const buttonClass = `field-button ${addedEntry ? 'completed-entry' : ''}`;
             if (option.contentType === 'nested-row') {
               return (
                 <div className="nested-fields-container">
                   <h4>{option.title}</h4>
                   {option.options.map((nestedOption) => {
+                    const addedNestedEntry = completedEntryIds.includes(nestedOption.id);
+                    const nestedButtonClass = `field-button ${
+                      addedNestedEntry ? 'completed-entry' : ''
+                    }`;
+
                     return (
                       <div className="fields-buttons-container">
                         <Button
                           buttonType="primary"
                           icon="PlusCircle"
-                          onClick={() =>
-                            openExistingEntry(nestedOption.id, nestedOption.contentType)
-                          }
-                          className="field-button">{`Edit ${nestedOption.title}`}</Button>
+                          onClick={() => {
+                            addedNestedEntry
+                              ? openEntry(nestedOption.id)
+                              : openExistingEntryClone(nestedOption.id, nestedOption.contentType);
+                          }}
+                          className={nestedButtonClass}>
+                          {addedNestedEntry ? 'Edit ' : 'Create '}
+                          {nestedOption.title}
+                        </Button>
                       </div>
                     );
                   })}
@@ -269,8 +363,16 @@ const App = ({ sdk }) => {
                   <Button
                     buttonType="primary"
                     icon="PlusCircle"
-                    onClick={() => openExistingEntry(option.id, option.contentType)}
-                    className="field-button">{`Edit ${option.title}`}</Button>
+                    icon="PlusCircle"
+                    onClick={() => {
+                      addedEntry
+                        ? openEntry(option.id)
+                        : openExistingEntryClone(option.id, option.contentType);
+                    }}
+                    className={buttonClass}>
+                    {addedEntry ? 'Edit ' : 'Create '}
+                    {option.title}
+                  </Button>
                 </div>
               );
             }

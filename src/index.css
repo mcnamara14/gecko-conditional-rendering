@@ -59,3 +59,20 @@ h4 {
 .nested-fields-container {
   margin: 20px 0 0 40px;
 }
+
+.completed-entry {
+  background: #2d64b3;
+  border: none;
+}
+
+.completed-entry span {
+  color: white !important;
+}
+
+.completed-entry:hover {
+  background: #2d64b3db !important;
+}
+
+.completed-entry svg {
+  fill: white !important;
+}
