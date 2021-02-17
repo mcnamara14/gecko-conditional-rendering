@@ -23,6 +23,8 @@ const App = ({ sdk }) => {
   });
   let [count, setCount] = useState(0);
   const [initialLoad, setInitialLoad] = useState(false);
+  const [templateName, setTemplateName] = useState();
+  const [variationId, setVariationId] = useState();
 
   const getEntry = async (entry) => {
     if (entry.sys) {
@@ -58,7 +60,10 @@ const App = ({ sdk }) => {
         return parentData;
       })
     );
-
+    const name = await sdk.entry.fields['templateName'].getValue();
+    const variationId = await sdk.entry.fields['variation'].getValue();
+    setTemplateName(name);
+    if (variationId) setVariationId(variationId);
     setTemplateData(templatesData);
     if (count === 0) {
       setCount((count += 1));
@@ -69,7 +74,7 @@ const App = ({ sdk }) => {
     setTemplateDropdownData();
 
     if (count === 1) {
-      handleNameSelect({ target: { value: templateData[0].name } });
+      handleNameSelect({ target: { value: templateName || templateData[0].name } });
       getCompletedEntryIds();
       setInitialLoad(true);
     }
@@ -86,7 +91,7 @@ const App = ({ sdk }) => {
 
     const fieldValues = await Promise.all(
       fieldNames.map(async (fieldName) => {
-        if (fieldName !== 'section' && fieldName !== 'templateName') {
+        if (fieldName !== 'section' && fieldName !== 'templateName' && fieldName !== 'variation') {
           const fieldValue = await sdk.entry.fields[fieldName].getValue();
 
           if (Array.isArray(fieldValue)) {
@@ -218,13 +223,25 @@ const App = ({ sdk }) => {
     }
   };
 
-  const handleNameSelect = (event) => {
+  const handleNameSelect = async (event, dropdownSelect) => {
+    const value = event.target.value;
     const selectedTemplate = templateData.find((template) => {
-      return template.name === event.target.value;
+      return template.name === value;
     });
 
     setSelectedTemplateData(selectedTemplate.variations);
-    handleVariationSelect({ target: { value: selectedTemplate.variations[0].id } });
+    handleVariationSelect({
+      target: {
+        value: dropdownSelect
+          ? selectedTemplate.variations[0].id
+          : variationId
+          ? variationId
+          : selectedTemplate.variations[0].id,
+      },
+    });
+
+    const templateNameField = await sdk.entry.fields['templateName'];
+    templateNameField.setValue(value);
   };
 
   const buildSelectionTree = async (variationTemplate) => {
@@ -348,7 +365,8 @@ const App = ({ sdk }) => {
   };
 
   const handleVariationSelect = async (event) => {
-    const variation = await getEntry(event.target.value);
+    const value = event.target.value;
+    const variation = await getEntry(value);
     const variationTemplateId = variation.fields.section['en-US'].sys.id;
     const variationTemplate = await getEntry(variationTemplateId);
 
@@ -358,6 +376,10 @@ const App = ({ sdk }) => {
     if (initialLoad) {
       deleteAllEntries();
     }
+
+    const variationField = await sdk.entry.fields['variation'];
+
+    variationField.setValue(value);
   };
 
   const Fields = () => {
@@ -433,7 +455,8 @@ const App = ({ sdk }) => {
         id="optionSelect"
         labelText="Template Name"
         selectProps="large"
-        onChange={(e) => handleNameSelect(e)}>
+        value={templateName}
+        onChange={(e) => handleNameSelect(e, true)}>
         {templateData.map((template) => {
           return <Option value={template.name}>{template.name}</Option>;
         })}
