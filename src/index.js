@@ -17,8 +17,12 @@ const App = ({ sdk }) => {
   let [templateFields, setTemplateFields] = useState([]);
   const [templateData, setTemplateData] = useState([]);
   const [selectedTemplateData, setSelectedTemplateData] = useState(null);
-  const [completedEntryIds, setCompletedEntryIds] = useState([]);
+  const [completedEntryIds, setCompletedEntryIds] = useState({
+    parentIds: [],
+    entryIds: [],
+  });
   let [count, setCount] = useState(0);
+  const [initialLoad, setInitialLoad] = useState(false);
 
   const getEntry = async (entry) => {
     if (entry.sys) {
@@ -67,11 +71,15 @@ const App = ({ sdk }) => {
     if (count === 1) {
       handleNameSelect({ target: { value: templateData[0].name } });
       getCompletedEntryIds();
+      setInitialLoad(true);
     }
   }, [count]);
 
   const getCompletedEntryIds = async () => {
-    setCompletedEntryIds([]);
+    setCompletedEntryIds({
+      parentIds: [],
+      entryIds: [],
+    });
 
     const fields = await sdk.entry.fields;
     const fieldNames = Object.keys(fields);
@@ -85,11 +93,12 @@ const App = ({ sdk }) => {
             const arrays = Promise.all(
               fieldValue.map(async (value) => {
                 if (value) {
-                  if (!completedEntryIds.includes(value?.sys?.id)) {
+                  if (!completedEntryIds.parentIds.includes(value?.sys?.id)) {
                     const parentEntry = await getEntry(value);
                     const templateEntryId = parentEntry.fields.templateEntryId['en-US'];
+                    const entryId = value?.sys?.id;
 
-                    return templateEntryId;
+                    return { templateEntryId, entryId };
                   }
                 }
               })
@@ -98,11 +107,12 @@ const App = ({ sdk }) => {
             return arrays;
           } else {
             if (fieldValue) {
-              if (!completedEntryIds.includes(fieldValue?.sys?.id)) {
+              if (!completedEntryIds.parentIds.includes(fieldValue?.sys?.id)) {
                 const parentEntry = await getEntry(fieldValue);
                 const templateEntryId = parentEntry.fields.templateEntryId['en-US'];
+                const entryId = fieldValue?.sys?.id;
 
-                return templateEntryId;
+                return { templateEntryId, entryId };
               }
             }
           }
@@ -110,14 +120,18 @@ const App = ({ sdk }) => {
       })
     );
 
-    const fieldIds = [];
+    const fieldIds = { parentIds: [], entryIds: [] };
 
     fieldValues.forEach((value) => {
       if (value !== undefined) {
         if (Array.isArray(value)) {
-          fieldIds.push(...value);
+          value.forEach((item) => {
+            fieldIds.parentIds.push(item.templateEntryId);
+            fieldIds.entryIds.push(item.entryId);
+          });
         } else {
-          fieldIds.push(value);
+          fieldIds.parentIds.push(value.templateEntryId);
+          fieldIds.entryIds.push(value.entryId);
         }
       }
     });
@@ -136,7 +150,7 @@ const App = ({ sdk }) => {
         if (Array.isArray(fieldValue)) {
           fieldValue.forEach(async (value) => {
             if (value) {
-              if (!completedEntryIds.includes(value?.sys?.id)) {
+              if (!completedEntryIds.parentIds.includes(value?.sys?.id)) {
                 const parentEntry = await getEntry(value);
                 const templateEntryId = parentEntry.fields.templateEntryId['en-US'];
 
@@ -176,7 +190,7 @@ const App = ({ sdk }) => {
 
     setFieldValue(result.entity.sys.id, id);
 
-    if (!completedEntryIds.includes(result.entity.sys.id)) {
+    if (!completedEntryIds.parentIds.includes(result.entity.sys.id)) {
       getCompletedEntryIds();
     }
   };
@@ -310,14 +324,40 @@ const App = ({ sdk }) => {
     setTemplateFields(tree);
   };
 
+  const deleteAllEntries = async () => {
+    for (const id of completedEntryIds.entryIds) {
+      const entry = await getEntry(id);
+
+      await sdk.space.unpublishEntry(entry);
+      await sdk.space.deleteEntry(entry);
+    }
+
+    const fields = await sdk.entry.fields;
+    const fieldNames = Object.keys(fields);
+
+    fieldNames.map(async (fieldName) => {
+      if (fieldName !== 'templateName') {
+        await sdk.entry.fields[fieldName].setValue(null);
+      }
+    });
+
+    setCompletedEntryIds({
+      parentIds: [],
+      entryIds: [],
+    });
+  };
+
   const handleVariationSelect = async (event) => {
     const variation = await getEntry(event.target.value);
     const variationTemplateId = variation.fields.section['en-US'].sys.id;
     const variationTemplate = await getEntry(variationTemplateId);
 
     await setFieldValue(variationTemplate.sys.id, 'section');
-
     buildSelectionTree(variationTemplate);
+
+    if (initialLoad) {
+      deleteAllEntries();
+    }
   };
 
   const Fields = () => {
@@ -326,14 +366,14 @@ const App = ({ sdk }) => {
         <div className="fields-container">
           <h3>{field.title}</h3>
           {field.options.map((option) => {
-            const addedEntry = completedEntryIds.includes(option.id);
+            const addedEntry = completedEntryIds.parentIds.includes(option.id);
             const buttonClass = `field-button ${addedEntry ? 'completed-entry' : ''}`;
             if (option.contentType === 'nested-row') {
               return (
                 <div className="nested-fields-container">
                   <h4>{option.title}</h4>
                   {option.options.map((nestedOption) => {
-                    const addedNestedEntry = completedEntryIds.includes(nestedOption.id);
+                    const addedNestedEntry = completedEntryIds.parentIds.includes(nestedOption.id);
                     const nestedButtonClass = `field-button ${
                       addedNestedEntry ? 'completed-entry' : ''
                     }`;
