@@ -6,6 +6,8 @@ import {
   Paragraph,
   Form,
   SelectField,
+  Subheading,
+  TextInput,
   Option,
 } from '@contentful/forma-36-react-components';
 import { init, locations } from 'contentful-ui-extensions-sdk';
@@ -25,6 +27,7 @@ const App = ({ sdk }) => {
   const [initialLoad, setInitialLoad] = useState(false);
   const [templateName, setTemplateName] = useState();
   const [variationId, setVariationId] = useState();
+  const [internalName, setInternalName] = useState();
 
   const getEntry = async (entry) => {
     if (entry.sys) {
@@ -60,11 +63,20 @@ const App = ({ sdk }) => {
         return parentData;
       })
     );
+
+    const sortedTemplateData = templatesData.sort((a, b) =>
+      a.name.toLowerCase().localeCompare(b.name.toLowerCase())
+    );
+
     const name = await sdk.entry.fields['templateName'].getValue();
     const variationId = await sdk.entry.fields['variation'].getValue();
+    const internalName = await sdk.entry.fields['internalName'].getValue();
+
     setTemplateName(name);
-    if (variationId) setVariationId(variationId);
-    setTemplateData(templatesData);
+    setVariationId(variationId);
+    setInternalName(internalName);
+    setTemplateData(sortedTemplateData);
+
     if (count === 0) {
       setCount((count += 1));
     }
@@ -88,14 +100,13 @@ const App = ({ sdk }) => {
 
     const fields = await sdk.entry.fields;
     const fieldNames = Object.keys(fields);
-
     const fieldValues = await Promise.all(
       fieldNames.map(async (fieldName) => {
         if (fieldName !== 'section' && fieldName !== 'templateName' && fieldName !== 'variation') {
           const fieldValue = await sdk.entry.fields[fieldName].getValue();
 
           if (Array.isArray(fieldValue)) {
-            const arrays = Promise.all(
+            const arrays = await Promise.all(
               fieldValue.map(async (value) => {
                 if (value) {
                   if (!completedEntryIds.parentIds.includes(value?.sys?.id)) {
@@ -110,17 +121,19 @@ const App = ({ sdk }) => {
             );
 
             return arrays;
-          } else {
-            if (fieldValue) {
-              if (!completedEntryIds.parentIds.includes(fieldValue?.sys?.id)) {
-                const parentEntry = await getEntry(fieldValue);
-                const templateEntryId = parentEntry.fields.templateEntryId['en-US'];
-                const entryId = fieldValue?.sys?.id;
-
-                return { templateEntryId, entryId };
-              }
-            }
           }
+
+          // else {
+          //   if (fieldValue) {
+          //     if (!completedEntryIds.parentIds.includes(fieldValue?.sys?.id)) {
+          //       const parentEntry = await getEntry(fieldValue);
+          //       const templateEntryId = parentEntry.fields.templateEntryId['en-US'];
+          //       const entryId = fieldValue?.sys?.id;
+
+          //       return { templateEntryId, entryId };
+          //     }
+          //   }
+          // }
         }
       })
     );
@@ -241,6 +254,7 @@ const App = ({ sdk }) => {
     });
 
     const templateNameField = await sdk.entry.fields['templateName'];
+
     templateNameField.setValue(value);
   };
 
@@ -353,7 +367,7 @@ const App = ({ sdk }) => {
     const fieldNames = Object.keys(fields);
 
     fieldNames.map(async (fieldName) => {
-      if (fieldName !== 'templateName') {
+      if (fieldName !== 'templateName' && fieldName !== 'internalName') {
         await sdk.entry.fields[fieldName].setValue(null);
       }
     });
@@ -362,6 +376,10 @@ const App = ({ sdk }) => {
       parentIds: [],
       entryIds: [],
     });
+  };
+
+  const handleInternalNameChange = async (event) => {
+    await sdk.entry.fields['internalName'].setValue(event.target.value);
   };
 
   const handleVariationSelect = async (event) => {
@@ -448,8 +466,14 @@ const App = ({ sdk }) => {
 
   return (
     <Form className="f36-margin--l">
-      <DisplayText>Gecko Template</DisplayText>
-      <Paragraph>Select template name to display required fields</Paragraph>
+      <Subheading className="subheading">Internal Name</Subheading>
+      <TextInput
+        className="internal-name-field"
+        name="example"
+        type="text"
+        value={internalName}
+        onChange={(e) => handleInternalNameChange(e)}
+      />
       <SelectField
         name="optionSelect"
         id="optionSelect"
