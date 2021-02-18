@@ -81,6 +81,7 @@ const App = ({ sdk }) => {
   };
 
   useEffect(() => {
+    sdk.window.startAutoResizer();
     setTemplateDropdownData();
 
     if (count === 1) {
