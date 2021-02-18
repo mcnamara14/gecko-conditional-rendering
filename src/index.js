@@ -69,7 +69,7 @@ const App = ({ sdk }) => {
     const name = await sdk.entry.fields['templateName'].getValue();
     const variationId = await sdk.entry.fields['variation'].getValue();
     const internalName = await sdk.entry.fields['internalName'].getValue();
-    console.log('sortedTemplateData', sortedTemplateData);
+
     setTemplateName(name);
     setVariationId(variationId);
     setInternalName(internalName);
@@ -81,7 +81,6 @@ const App = ({ sdk }) => {
   };
 
   useEffect(() => {
-    sdk.window.startAutoResizer();
     setTemplateDropdownData();
 
     if (count === 1) {
@@ -277,9 +276,20 @@ const App = ({ sdk }) => {
 
     const columns = await getColumns(rows);
 
+    const getNestedOptions = (data) => {
+      return data.map((entry) => {
+        return {
+          title: entry.fields.internalName['en-US'],
+          id: entry.sys.id,
+          contentType: entry.sys.contentType.sys.id,
+        };
+      });
+    };
+
     const getOptions = async (data) => {
-      return Promise.all(
+      const options = await Promise.all(
         data.map(async (entry) => {
+          const entryData = [];
           if (entry.sys.contentType.sys.id === 'section') {
             const columns = await getColumn(entry);
 
@@ -291,12 +301,13 @@ const App = ({ sdk }) => {
               };
 
               const itemEntries = await getEntries(column);
-              const options = await getOptions(itemEntries);
-
+              const options = getNestedOptions(itemEntries);
               data.options = options;
 
-              return data;
+              entryData.push(data);
             }
+
+            return entryData;
           } else {
             return {
               title: entry.fields.internalName['en-US'],
@@ -306,12 +317,27 @@ const App = ({ sdk }) => {
           }
         })
       );
+
+      const formattedOptions = [];
+
+      options.forEach((option) => {
+        if (Array.isArray(option)) {
+          option.forEach((item) => {
+            formattedOptions.push(item);
+          });
+        } else {
+          formattedOptions.push(option);
+        }
+      });
+
+      return formattedOptions;
     };
 
     const getEntries = async (data) => {
       return Promise.all(
         data.fields.items['en-US'].map((item) => {
           const itemId = item.sys.id;
+
           return getEntry(itemId);
         })
       );

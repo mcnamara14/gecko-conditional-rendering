@@ -1,5 +1,5 @@
 {
   "id": "conditional-fields",
-  "name": "Gecko - Conditional Fields",
+  "name": "Conditional Fields",
   "srcdoc": "./build/index.html"
 }
