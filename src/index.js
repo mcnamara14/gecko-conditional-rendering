@@ -2,8 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { render } from 'react-dom';
 import {
   Button,
-  DisplayText,
-  Paragraph,
   Form,
   SelectField,
   Subheading,
@@ -71,7 +69,7 @@ const App = ({ sdk }) => {
     const name = await sdk.entry.fields['templateName'].getValue();
     const variationId = await sdk.entry.fields['variation'].getValue();
     const internalName = await sdk.entry.fields['internalName'].getValue();
-
+    console.log('sortedTemplateData', sortedTemplateData);
     setTemplateName(name);
     setVariationId(variationId);
     setInternalName(internalName);
@@ -122,18 +120,6 @@ const App = ({ sdk }) => {
 
             return arrays;
           }
-
-          // else {
-          //   if (fieldValue) {
-          //     if (!completedEntryIds.parentIds.includes(fieldValue?.sys?.id)) {
-          //       const parentEntry = await getEntry(fieldValue);
-          //       const templateEntryId = parentEntry.fields.templateEntryId['en-US'];
-          //       const entryId = fieldValue?.sys?.id;
-
-          //       return { templateEntryId, entryId };
-          //     }
-          //   }
-          // }
         }
       })
     );
@@ -358,7 +344,6 @@ const App = ({ sdk }) => {
   const deleteAllEntries = async () => {
     for (const id of completedEntryIds.entryIds) {
       const entry = await getEntry(id);
-
       await sdk.space.unpublishEntry(entry);
       await sdk.space.deleteEntry(entry);
     }
@@ -400,38 +385,38 @@ const App = ({ sdk }) => {
     variationField.setValue(value);
   };
 
+  const getButton = (id, contentType, title) => {
+    const addedEntry = completedEntryIds.parentIds.includes(id);
+    const buttonClass = `field-button ${addedEntry ? 'completed-entry' : ''}`;
+
+    return (
+      <Button
+        buttonType="primary"
+        icon="PlusCircle"
+        onClick={() => {
+          addedEntry ? openEntry(id) : openExistingEntryClone(id, contentType);
+        }}
+        className={buttonClass}>
+        {addedEntry ? 'Edit ' : 'Create '}
+        {title}
+      </Button>
+    );
+  };
+
   const Fields = () => {
     const templateElements = templateFields.map((field) => {
       return (
         <div className="fields-container">
           <h3>{field.title}</h3>
           {field.options.map((option) => {
-            const addedEntry = completedEntryIds.parentIds.includes(option.id);
-            const buttonClass = `field-button ${addedEntry ? 'completed-entry' : ''}`;
             if (option.contentType === 'nested-row') {
               return (
                 <div className="nested-fields-container">
                   <h4>{option.title}</h4>
                   {option.options.map((nestedOption) => {
-                    const addedNestedEntry = completedEntryIds.parentIds.includes(nestedOption.id);
-                    const nestedButtonClass = `field-button ${
-                      addedNestedEntry ? 'completed-entry' : ''
-                    }`;
-
                     return (
                       <div className="fields-buttons-container">
-                        <Button
-                          buttonType="primary"
-                          icon="PlusCircle"
-                          onClick={() => {
-                            addedNestedEntry
-                              ? openEntry(nestedOption.id)
-                              : openExistingEntryClone(nestedOption.id, nestedOption.contentType);
-                          }}
-                          className={nestedButtonClass}>
-                          {addedNestedEntry ? 'Edit ' : 'Create '}
-                          {nestedOption.title}
-                        </Button>
+                        {getButton(nestedOption.id, nestedOption.contentType, nestedOption.title)}
                       </div>
                     );
                   })}
@@ -440,19 +425,7 @@ const App = ({ sdk }) => {
             } else {
               return (
                 <div className="fields-buttons-container">
-                  <Button
-                    buttonType="primary"
-                    icon="PlusCircle"
-                    icon="PlusCircle"
-                    onClick={() => {
-                      addedEntry
-                        ? openEntry(option.id)
-                        : openExistingEntryClone(option.id, option.contentType);
-                    }}
-                    className={buttonClass}>
-                    {addedEntry ? 'Edit ' : 'Create '}
-                    {option.title}
-                  </Button>
+                  {getButton(option.id, option.contentType, option.title)}
                 </div>
               );
             }
