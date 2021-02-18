@@ -84,7 +84,7 @@ const App = ({ sdk }) => {
     setTemplateDropdownData();
 
     if (count === 1) {
-      handleNameSelect({ target: { value: templateName || templateData[0].name } });
+      templateName && handleNameSelect({ target: { value: templateName } });
       getCompletedEntryIds();
       setInitialLoad(true);
     }
@@ -400,12 +400,11 @@ const App = ({ sdk }) => {
     const variationTemplateId = variation.fields.section['en-US'].sys.id;
     const variationTemplate = await getEntry(variationTemplateId);
 
-    await setFieldValue(variationTemplate.sys.id, 'section');
-    buildSelectionTree(variationTemplate);
-
     if (initialLoad) {
       deleteAllEntries();
     }
+    await setFieldValue(variationTemplate.sys.id, 'section');
+    buildSelectionTree(variationTemplate);
 
     const variationField = await sdk.entry.fields['variation'];
 
@@ -481,6 +480,7 @@ const App = ({ sdk }) => {
         selectProps="large"
         value={templateName}
         onChange={(e) => handleNameSelect(e, true)}>
+        <Option value={null}>Select Template</Option>
         {templateData.map((template) => {
           return <Option value={template.name}>{template.name}</Option>;
         })}
