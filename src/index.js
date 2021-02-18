@@ -80,15 +80,15 @@ const App = ({ sdk }) => {
     }
   };
 
-  useEffect(() => {
-    setTemplateDropdownData();
+  // useEffect(() => {
+  //   setTemplateDropdownData();
 
-    if (count === 1) {
-      handleNameSelect({ target: { value: templateName || templateData[0].name } });
-      getCompletedEntryIds();
-      setInitialLoad(true);
-    }
-  }, [count]);
+  //   if (count === 1) {
+  //     handleNameSelect({ target: { value: templateName || templateData[0].name } });
+  //     getCompletedEntryIds();
+  //     setInitialLoad(true);
+  //   }
+  // }, [count]);
 
   const getCompletedEntryIds = async () => {
     setCompletedEntryIds({
@@ -439,7 +439,8 @@ const App = ({ sdk }) => {
 
   return (
     <Form className="f36-margin--l">
-      <Subheading className="subheading">Internal Name</Subheading>
+      'hello'
+      {/* <Subheading className="subheading">Internal Name</Subheading>
       <TextInput
         className="internal-name-field"
         name="example"
@@ -470,7 +471,7 @@ const App = ({ sdk }) => {
           })}
         </SelectField>
       )}
-      <Fields />
+      <Fields /> */}
     </Form>
   );
 };
