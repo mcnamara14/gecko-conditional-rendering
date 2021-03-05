@@ -106,14 +106,14 @@ const App = ({ sdk }) => {
           if (Array.isArray(fieldValue)) {
             const arrays = await Promise.all(
               fieldValue.map(async (value) => {
+                const entry = await getEntry(value?.sys?.id);
+                let parentId = entry.fields.templateEntryId['en-US'];
                 if (value) {
-                  if (!completedEntryIds.parentIds.includes(value?.sys?.id)) {
-                    const parentEntry = await getEntry(value);
-                    const templateEntryId = parentEntry.fields.templateEntryId['en-US'];
-                    const entryId = value?.sys?.id;
+                  const parentEntry = await getEntry(value);
+                  const templateEntryId = parentEntry.fields.templateEntryId['en-US'];
+                  const entryId = parentId;
 
-                    return { templateEntryId, entryId };
-                  }
+                  return { templateEntryId, entryId };
                 }
               })
             );
@@ -154,15 +154,13 @@ const App = ({ sdk }) => {
         if (Array.isArray(fieldValue)) {
           fieldValue.forEach(async (value) => {
             if (value) {
-              if (!completedEntryIds.parentIds.includes(value?.sys?.id)) {
-                const parentEntry = await getEntry(value);
-                const templateEntryId = parentEntry.fields.templateEntryId['en-US'];
+              const entry = await getEntry(value);
+              const templateEntryId = entry.fields.templateEntryId['en-US'];
 
-                if (templateEntryId === id) {
-                  await sdk.navigator.openEntry(parentEntry.sys.id, {
-                    slideIn: { waitForClose: true },
-                  });
-                }
+              if (templateEntryId === id) {
+                await sdk.navigator.openEntry(entry.sys.id, {
+                  slideIn: { waitForClose: true },
+                });
               }
             }
           });
@@ -181,7 +179,7 @@ const App = ({ sdk }) => {
 
     const updatedFields = {
       ...newFields,
-      templateEntryId: { ['en-US']: parentEntry.sys.id },
+      templateEntryId: { ['en-US']: fields.templateEntryId['en-US'] },
     };
 
     const clonedEntry = await sdk.space.createEntry(parentEntry.sys.contentType.sys.id, {
@@ -192,9 +190,11 @@ const App = ({ sdk }) => {
       slideIn: { waitForClose: true },
     });
 
+    const templateId = result.entity.fields.templateEntryId['en-US'];
+
     setFieldValue(result.entity.sys.id, id);
 
-    if (!completedEntryIds.parentIds.includes(result.entity.sys.id)) {
+    if (!completedEntryIds.parentIds.includes(templateId)) {
       getCompletedEntryIds();
     }
   };
@@ -282,6 +282,7 @@ const App = ({ sdk }) => {
           title: entry.fields.internalName['en-US'],
           id: entry.sys.id,
           contentType: entry.sys.contentType.sys.id,
+          templateEntryId: entry.fields.templateEntryId['en-US'],
         };
       });
     };
@@ -313,6 +314,7 @@ const App = ({ sdk }) => {
               title: entry.fields.internalName['en-US'],
               id: entry.sys.id,
               contentType: entry.sys.contentType.sys.id,
+              templateEntryId: entry.fields.templateEntryId['en-US'],
             };
           }
         })
@@ -411,8 +413,8 @@ const App = ({ sdk }) => {
     variationField.setValue(value);
   };
 
-  const getButton = (id, contentType, title) => {
-    const addedEntry = completedEntryIds.parentIds.includes(id);
+  const getButton = (id, contentType, title, templateEntryId) => {
+    const addedEntry = completedEntryIds.parentIds.includes(templateEntryId);
     const buttonClass = `field-button ${addedEntry ? 'completed-entry' : ''}`;
 
     return (
@@ -420,7 +422,7 @@ const App = ({ sdk }) => {
         buttonType="primary"
         icon="PlusCircle"
         onClick={() => {
-          addedEntry ? openEntry(id) : openExistingEntryClone(id, contentType);
+          addedEntry ? openEntry(templateEntryId) : openExistingEntryClone(id, contentType);
         }}
         className={buttonClass}>
         {addedEntry ? 'Edit ' : 'Create '}
@@ -442,7 +444,12 @@ const App = ({ sdk }) => {
                   {option.options.map((nestedOption) => {
                     return (
                       <div className="fields-buttons-container">
-                        {getButton(nestedOption.id, nestedOption.contentType, nestedOption.title)}
+                        {getButton(
+                          nestedOption.id,
+                          nestedOption.contentType,
+                          nestedOption.title,
+                          nestedOption.templateEntryId
+                        )}
                       </div>
                     );
                   })}
@@ -451,7 +458,7 @@ const App = ({ sdk }) => {
             } else {
               return (
                 <div className="fields-buttons-container">
-                  {getButton(option.id, option.contentType, option.title)}
+                  {getButton(option.id, option.contentType, option.title, option.templateEntryId)}
                 </div>
               );
             }
@@ -491,6 +498,7 @@ const App = ({ sdk }) => {
           id="optionSelect"
           labelText="Variation"
           selectProps="large"
+          value={variationId}
           onChange={(e) => handleVariationSelect(e)}>
           {selectedTemplateData.map((variation) => {
             return <Option value={variation.id}>{variation.name}</Option>;
