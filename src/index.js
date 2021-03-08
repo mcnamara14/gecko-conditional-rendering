@@ -51,7 +51,7 @@ const App = ({ sdk }) => {
           const variationEntry = await getEntry(variation);
 
           const variationData = {
-            name: variationEntry.fields.name['en-US'],
+            name: variationEntry.fields.variation['en-US'],
             id: variationEntry.sys.id,
           };
 
@@ -107,13 +107,13 @@ const App = ({ sdk }) => {
             const arrays = await Promise.all(
               fieldValue.map(async (value) => {
                 const entry = await getEntry(value?.sys?.id);
-                let parentId = entry.fields.templateEntryId['en-US'];
+                let parentId = entry.fields.templateId['en-US'];
                 if (value) {
                   const parentEntry = await getEntry(value);
-                  const templateEntryId = parentEntry.fields.templateEntryId['en-US'];
+                  const templateId = parentEntry.fields.templateId['en-US'];
                   const entryId = parentId;
 
-                  return { templateEntryId, entryId };
+                  return { templateId, entryId };
                 }
               })
             );
@@ -130,11 +130,11 @@ const App = ({ sdk }) => {
       if (value !== undefined) {
         if (Array.isArray(value)) {
           value.forEach((item) => {
-            fieldIds.parentIds.push(item.templateEntryId);
+            fieldIds.parentIds.push(item.templateId);
             fieldIds.entryIds.push(item.entryId);
           });
         } else {
-          fieldIds.parentIds.push(value.templateEntryId);
+          fieldIds.parentIds.push(value.templateId);
           fieldIds.entryIds.push(value.entryId);
         }
       }
@@ -155,9 +155,9 @@ const App = ({ sdk }) => {
           fieldValue.forEach(async (value) => {
             if (value) {
               const entry = await getEntry(value);
-              const templateEntryId = entry.fields.templateEntryId['en-US'];
+              const templateId = entry.fields.templateId['en-US'];
 
-              if (templateEntryId === id) {
+              if (templateId === id) {
                 await sdk.navigator.openEntry(entry.sys.id, {
                   slideIn: { waitForClose: true },
                 });
@@ -179,7 +179,7 @@ const App = ({ sdk }) => {
 
     const updatedFields = {
       ...newFields,
-      templateEntryId: { ['en-US']: fields.templateEntryId['en-US'] },
+      templateId: { ['en-US']: fields.templateId['en-US'] },
     };
 
     const clonedEntry = await sdk.space.createEntry(parentEntry.sys.contentType.sys.id, {
@@ -190,7 +190,7 @@ const App = ({ sdk }) => {
       slideIn: { waitForClose: true },
     });
 
-    const templateId = result.entity.fields.templateEntryId['en-US'];
+    const templateId = result.entity.fields.templateId['en-US'];
 
     setFieldValue(result.entity.sys.id, id);
 
@@ -282,7 +282,7 @@ const App = ({ sdk }) => {
           title: entry.fields.internalName['en-US'],
           id: entry.sys.id,
           contentType: entry.sys.contentType.sys.id,
-          templateEntryId: entry.fields.templateEntryId['en-US'],
+          templateId: entry.fields.templateId['en-US'],
         };
       });
     };
@@ -314,7 +314,7 @@ const App = ({ sdk }) => {
               title: entry.fields.internalName['en-US'],
               id: entry.sys.id,
               contentType: entry.sys.contentType.sys.id,
-              templateEntryId: entry.fields.templateEntryId['en-US'],
+              templateId: entry.fields.templateId['en-US'],
             };
           }
         })
@@ -401,7 +401,7 @@ const App = ({ sdk }) => {
     const variation = await getEntry(value);
     const variationTemplateId = variation.fields.section['en-US'].sys.id;
     const variationTemplate = await getEntry(variationTemplateId);
-
+    console.log('');
     if (initialLoad) {
       deleteAllEntries();
     }
@@ -413,8 +413,8 @@ const App = ({ sdk }) => {
     variationField.setValue(value);
   };
 
-  const getButton = (id, contentType, title, templateEntryId) => {
-    const addedEntry = completedEntryIds.parentIds.includes(templateEntryId);
+  const getButton = (id, contentType, title, templateId) => {
+    const addedEntry = completedEntryIds.parentIds.includes(templateId);
     const buttonClass = `field-button ${addedEntry ? 'completed-entry' : ''}`;
 
     return (
@@ -422,7 +422,7 @@ const App = ({ sdk }) => {
         buttonType="primary"
         icon="PlusCircle"
         onClick={() => {
-          addedEntry ? openEntry(templateEntryId) : openExistingEntryClone(id, contentType);
+          addedEntry ? openEntry(templateId) : openExistingEntryClone(id, contentType);
         }}
         className={buttonClass}>
         {addedEntry ? 'Edit ' : 'Create '}
@@ -448,7 +448,7 @@ const App = ({ sdk }) => {
                           nestedOption.id,
                           nestedOption.contentType,
                           nestedOption.title,
-                          nestedOption.templateEntryId
+                          nestedOption.templateId
                         )}
                       </div>
                     );
@@ -458,7 +458,7 @@ const App = ({ sdk }) => {
             } else {
               return (
                 <div className="fields-buttons-container">
-                  {getButton(option.id, option.contentType, option.title, option.templateEntryId)}
+                  {getButton(option.id, option.contentType, option.title, option.templateId)}
                 </div>
               );
             }
