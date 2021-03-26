@@ -49,10 +49,20 @@ const App = ({ sdk }) => {
 
         for (const variation of template.fields.variations['en-US']) {
           const variationEntry = await getEntry(variation);
+          console.log('template', variationEntry);
+
+          if (variationEntry.fields.templateOptions) {
+            const options = await getEntry(variationEntry.fields.templateOptions['en-US'][0]);
+
+            for (const option of options.fields.options['en-US']) {
+              const variationOption = await getEntry(option);
+              console.log('variationOption', variationOption);
+            }
+          }
 
           const variationData = {
             name: variationEntry.fields.variation['en-US'],
-            id: variationEntry.sys.id,
+            id: variationEntry.fields.section['en-US'].sys.id,
           };
 
           parentData.variations.push(variationData);
@@ -107,10 +117,13 @@ const App = ({ sdk }) => {
             const arrays = await Promise.all(
               fieldValue.map(async (value) => {
                 const entry = await getEntry(value?.sys?.id);
-                let parentId = entry.fields.templateId['en-US'];
+                let parentId = entry.fields.templateId && entry.fields.templateId['en-US'];
+
                 if (value) {
                   const parentEntry = await getEntry(value);
-                  const templateId = parentEntry.fields.templateId['en-US'];
+
+                  const templateId =
+                    parentEntry.fields.templateId && parentEntry.fields.templateId['en-US'];
                   const entryId = parentId;
 
                   return { templateId, entryId };
@@ -191,7 +204,9 @@ const App = ({ sdk }) => {
     });
 
     const templateId = result.entity.fields.templateId['en-US'];
+    // const templateIdFieldId = `${parentEntry.sys.contentType.sys.id}IDs`;
 
+    // setFieldValue(sdk.ids.entry, templateIdFieldId);
     setFieldValue(result.entity.sys.id, id);
 
     if (!completedEntryIds.parentIds.includes(templateId)) {
@@ -228,6 +243,7 @@ const App = ({ sdk }) => {
       return template.name === value;
     });
 
+    // variationEntry.fields.section['en-US'].sys.id
     setSelectedTemplateData(selectedTemplate.variations);
     handleVariationSelect({
       target: {
@@ -354,8 +370,8 @@ const App = ({ sdk }) => {
           contentType: 'row',
         };
 
-        const itemEntries = await getEntries(column);
-        const options = await getOptions(itemEntries);
+        const itemEntries = column.fields.items && (await getEntries(column));
+        const options = itemEntries && (await getOptions(itemEntries));
 
         data.options = options;
 
@@ -397,20 +413,20 @@ const App = ({ sdk }) => {
   };
 
   const handleVariationSelect = async (event) => {
-    const value = event.target.value;
-    const variation = await getEntry(value);
-    const variationTemplateId = variation.fields.section['en-US'].sys.id;
+    const variationTemplateId = event.target.value;
+    // const variation = await getEntry(value);
+    // const variationTemplateId = variation.fields.section['en-US'].sys.id;
     const variationTemplate = await getEntry(variationTemplateId);
-    console.log('');
+
     if (initialLoad) {
       deleteAllEntries();
     }
-    await setFieldValue(variationTemplate.sys.id, 'section');
+    await setFieldValue(variationTemplateId, 'section');
     buildSelectionTree(variationTemplate);
 
     const variationField = await sdk.entry.fields['variation'];
 
-    variationField.setValue(value);
+    variationField.setValue(variationTemplateId);
   };
 
   const getButton = (id, contentType, title, templateId) => {
@@ -436,7 +452,7 @@ const App = ({ sdk }) => {
       return (
         <div className="fields-container">
           <h3>{field.title}</h3>
-          {field.options.map((option) => {
+          {field?.options?.map((option) => {
             if (option.contentType === 'nested-row') {
               return (
                 <div className="nested-fields-container">
@@ -469,7 +485,7 @@ const App = ({ sdk }) => {
 
     return templateElements;
   };
-
+  console.log('selectedTemplateData', selectedTemplateData);
   return (
     <Form className="f36-margin--l">
       <Subheading className="subheading">Internal Name</Subheading>
